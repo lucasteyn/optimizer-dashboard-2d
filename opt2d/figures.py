@@ -226,3 +226,49 @@ def build_figure(run, view, ghost=None, click=False, grid_fn=grid_xyz):
                    aspectmode="manual", aspectratio=dict(x=1, y=1, z=0.7),
                    camera=dict(eye=dict(x=1.2, y=-1.3, z=0.8), up=dict(x=0, y=0, z=1))))
     return go.Figure(fig), info
+
+
+# ---------------------------------------------------------------- compact clickable contour (pick the next start)
+def build_picker(run, view, ghost=None, new_start=None, grid_fn=grid_xyz):
+    """A single contour with the finished run (solid), the pinned run (dotted) and an invisible click grid.
+
+    Used after a run to choose the next start point without leaving the page. Returns ``(fig, click_index)``.
+    """
+    cx, cy, half = window_of(run, view, ghost)
+    xs, ys, Z = grid_fn(run, cx, cy, half, int(view["grid"]))
+    floor = float(np.nanmin(np.concatenate([Z.ravel()[np.isfinite(Z.ravel())]] + [np.asarray(h["loss"]) for h in run.history.values()])))
+    fig = go.Figure()
+    fig.add_trace(go.Contour(x=xs, y=ys, z=transform(Z, floor, bool(view["log_z"])), showscale=False, ncontours=18,
+                             hoverinfo="skip", colorscale=CONTOUR_COLORS, line=dict(width=0.6, color="#6b7b8c")))
+    gx, gy = np.meshgrid(np.linspace(xs[0], xs[-1], 21), np.linspace(ys[0], ys[-1], 21))
+    fig.add_trace(go.Scatter(x=gx.ravel(), y=gy.ravel(), mode="markers", marker=dict(size=14, opacity=0), showlegend=False,
+                             hovertemplate="x=%{x:.3g}, y=%{y:.3g}<extra>click to set the next start</extra>"))
+    click_idx = len(fig.data) - 1
+
+    def thin(w, k=1500):
+        step = max(1, len(w) // k)
+        idx = sorted(set(range(0, len(w), step)) | {len(w) - 1})
+        return w[idx]
+
+    for name in (ghost["names"] if ghost else []):
+        w = thin(np.array(ghost["w"][name]))
+        fig.add_trace(go.Scatter(x=w[:, 0], y=w[:, 1], mode="lines", hoverinfo="skip", showlegend=False, opacity=0.45,
+                                 line=dict(width=2, dash="dot", color=color(name))))
+    for name in run.names:
+        w = thin(np.array(run.history[name]["w"]))
+        fig.add_trace(go.Scatter(x=w[:, 0], y=w[:, 1], mode="lines", name=name, hoverinfo="skip",
+                                 line=dict(width=2.5, color=color(name))))
+    optima = np.array(run.objective.optima, dtype=float).reshape(-1, 2)
+    if len(optima):
+        fig.add_trace(go.Scatter(x=optima[:, 0], y=optima[:, 1], mode="markers", name="minimum", hoverinfo="skip",
+                                 marker=dict(symbol="x", size=9, color="black")))
+    fig.add_trace(go.Scatter(x=[run.w0[0]], y=[run.w0[1]], mode="markers", name="start of this run", hoverinfo="skip",
+                             marker=dict(symbol="circle", size=9, color="white", line=dict(color="black", width=2))))
+    if new_start is not None:
+        fig.add_trace(go.Scatter(x=[new_start[0]], y=[new_start[1]], mode="markers", name="next start", hoverinfo="skip",
+                                 marker=dict(symbol="star", size=14, color="#CC79A7", line=dict(color="black", width=1))))
+    fig.update_xaxes(range=[cx - half, cx + half], title_text="x")
+    fig.update_yaxes(range=[cy - half, cy + half], title_text="y")
+    fig.update_layout(template="plotly_white", font=dict(size=11), height=440, margin=dict(l=50, r=20, t=20, b=45),
+                      legend=dict(orientation="h", x=0, y=-0.15), uirevision="keep")
+    return fig, click_idx

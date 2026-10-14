@@ -127,3 +127,17 @@ def test_convergence_tab_and_downloads_exist_after_run():
     at.selectbox(key="tol_loss").select(1e-2)
     at.run()
     assert not at.exception
+
+
+def test_picker_appears_after_run_and_pin_shows_in_preview():
+    at = fresh()
+    at.number_input(key="iters").set_value(15)
+    at.run()
+    click(at, "Run")
+    click(at, "Pin run")
+    at.checkbox(key="pick_on").set_value(True)
+    at.run()
+    assert not at.exception and "pick" in at.session_state["figs"]
+    click(at, "Reset")                                   # back to the preview, with the pinned run drawn
+    assert at.session_state["run"] is None and at.session_state["ghost"] is not None
+    assert not at.exception

@@ -50,7 +50,8 @@ Set the plotted window (centre and half-width) under **View**.
 
 - **Objective**: Quadratic bowl, ill-conditioned and rotated quadratics, Rosenbrock, Himmelblau, Beale, Rastrigin,
   least squares with minibatches (N, m, seed), or Custom. Choosing one loads its start point, window and learning rates.
-- **Start point**: type x and y, or click the contour before a run.
+- **Start point**: type x and y, click the contour before a run, or tick *Pick the next start point* under the player
+  to click on a contour that also shows the finished and the pinned run.
 - **Optimizers**: tick the ones to compare; each has a settings box (own learning rate, momentum / rho / betas / eps).
 - **Run**: global learning rate, max iterations, schedule (constant / linear / cosine decay).
 - **Pin run**: keeps the finished run as a faded dotted ghost so a changed setting can be compared with it.

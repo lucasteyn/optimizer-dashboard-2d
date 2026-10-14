@@ -180,3 +180,30 @@ def test_grid_function_is_reusable_for_caching():
     view = dict(window="fixed", cx=0.0, cy=0.0, half=2.0, grid=21, log_z=False, log_loss=True, log_norm=True)
     fig, _ = build_figure(run, view, grid_fn=lambda *args: a)
     assert fig.data[0].z.shape == (21, 21) and fig.data[-1] is not None
+
+
+def test_picker_has_click_grid_ghost_and_new_start():
+    from opt2d.figures import build_picker
+    v = S.defaults(OBJ)
+    run = S.build_run(S.config_from(v), OBJ)
+    run.run(20)
+    view = dict(window="fixed", cx=v["cx"], cy=v["cy"], half=v["half_width"], grid=21, log_z=False, log_loss=True,
+                log_norm=True)
+    fig, click = build_picker(run, view, ghost=S.pin_from(run), new_start=(1.0, 1.0))
+    assert click == 1 and fig.data[click].mode == "markers" and fig.data[click].marker.opacity == 0
+    names = [t.name for t in fig.data]
+    assert "next start" in names and "start of this run" in names and all(n in names for n in run.names)
+    assert sum(1 for t in fig.data if t.line is not None and t.line.dash == "dot") == len(run.names)   # the pinned run
+
+
+def test_preview_figure_draws_the_pinned_run():
+    v = S.defaults(OBJ)
+    run = S.build_run(S.config_from(v), OBJ)
+    run.run(10)
+    from dataclasses import replace
+    pre = S.build_run(replace(S.config_from(v), chosen={}), OBJ, need_optimizers=False)
+    view = dict(window="fixed", cx=v["cx"], cy=v["cy"], half=v["half_width"], grid=21, log_z=False, log_loss=True,
+                log_norm=True)
+    plain, _ = build_figure(pre, view, click=True)
+    pinned, _ = build_figure(pre, view, ghost=S.pin_from(run), click=True)
+    assert len(pinned.data) > len(plain.data)

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0
+- The pinned run is drawn in the click-to-set-start preview.
+- After a run: "Pick the next start point by clicking the contour" under the player shows a compact contour with the run
+  (solid), the pinned run (dotted) and the next start (star); clicking sets the start without discarding the run.
+
 ## 0.2.2
 - Panel layout: trajectory top left, 3-D surface top right, loss bottom left, gradient norm bottom right.
 

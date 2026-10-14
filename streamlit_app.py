@@ -18,7 +18,7 @@ from opt2d import OPTIMIZERS, get_objectives
 from opt2d import settings as S
 from opt2d.analysis import convergence_rows
 from opt2d.export import history_csv
-from opt2d.figures import PLOT_CONFIG, build_figure, grid_xyz
+from opt2d.figures import PLOT_CONFIG, build_figure, build_picker, grid_xyz
 from opt2d.lessons import LESSONS
 from opt2d.objectives import CUSTOM_NAME
 from opt2d.player import player_html, player_page
@@ -93,18 +93,33 @@ def on_unpin():
     ss.ghost = None
 
 
-def on_click():
-    """A click on the contour sets the start point (before a run)."""
-    ev = ss.get(f"preview_{ss.click_n}")
+def set_start_from_click(key, click_index):
+    """A click on a contour sets the start point (the point is taken from the invisible click grid)."""
+    ev = ss.get(key)
     points = (ev or {}).get("selection", {}).get("points", []) if ev else []
-    cached = ss.figs.get("preview")
-    if not points or cached is None:
-        return
+    if not points or click_index is None:
+        return False
     pt = points[0]
-    if pt.get("curve_number") == cached[2]["click"]:
-        ss.start_x, ss.start_y = round(float(pt["x"]), 3), round(float(pt["y"]), 3)
-        ss.click_n += 1
+    if pt.get("curve_number") != click_index:
+        return False
+    ss.start_x, ss.start_y = round(float(pt["x"]), 3), round(float(pt["y"]), 3)
+    ss.click_n += 1                                    # a new chart key clears the selection
+    touch()
+    return True
+
+
+def on_click():
+    """Before a run: click the preview contour to set the start."""
+    cached = ss.figs.get("preview")
+    if cached is not None and set_start_from_click(f"preview_{ss.click_n}", cached[2]["click"]):
         ss.figs = {}
+
+
+def on_pick():
+    """After a run: click the small contour under the player to set the NEXT start (the run stays on screen)."""
+    cached = ss.figs.get("pick")
+    if cached is not None:
+        set_start_from_click(f"pick_{ss.click_n}", cached[2])
 
 
 def embed(html, height):
@@ -258,13 +273,30 @@ def play_html(run):
 
 def show_preview(run):
     view = view_dict("fixed")
-    sig = (id(run), tuple(view.values()), ss.click_n)
+    sig = (id(run), tuple(view.values()), ss.click_n, id(ss.ghost))
     cached = ss.figs.get("preview")
     if cached is None or cached[0] != sig:
-        fig, info = build_figure(run, view, click=True, grid_fn=grid_fn(cfg))
+        fig, info = build_figure(run, view, ghost=ss.ghost, click=True, grid_fn=grid_fn(cfg))
         ss.figs["preview"] = cached = (sig, fig, info)
     plot(cached[1], f"preview_{ss.click_n}", on_select=on_click, selection_mode="points")
-    st.caption("Press Run to compute the optimizers, or click the contour to set the start point.")
+    st.caption("Press Run to compute the optimizers, or click the contour to set the start point."
+               + (" The pinned run is shown dotted." if ss.ghost else ""))
+
+
+def show_picker(run):
+    """After a run: choose the next start by clicking, with the finished and the pinned run drawn for reference."""
+    if not st.checkbox("Pick the next start point by clicking the contour", key="pick_on"):
+        return
+    view = view_dict(ss.window)
+    new_start = (float(ss.start_x), float(ss.start_y))
+    sig = (id(run), tuple(view.values()), id(ss.ghost), ss.click_n, new_start)
+    cached = ss.figs.get("pick")
+    if cached is None or cached[0] != sig:
+        fig, click_idx = build_picker(run, view, ss.ghost, new_start, grid_fn=grid_fn(ss.run_cfg))
+        ss.figs["pick"] = cached = (sig, fig, click_idx)
+    plot(cached[1], f"pick_{ss.click_n}", on_select=on_pick, selection_mode="points")
+    st.caption("Click to set the start point, then press Run. The solid paths are the run above; dotted paths are the "
+               "pinned run (use Pin run first to keep it for comparison). The star marks the next start.")
 
 
 def show_convergence(run):
@@ -311,5 +343,6 @@ else:
         st.caption("Press Play or drag the slider: the browser replays the stored run, so nothing is recomputed. "
                    "The contour, surface and axes stay fixed while the paths grow.")
         embed(*html)
+        show_picker(ss.run)
     with conv:
         show_convergence(ss.run)
