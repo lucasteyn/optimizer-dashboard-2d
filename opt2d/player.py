@@ -16,7 +16,7 @@ import plotly.io as pio
 
 from .figures import PLOT_CONFIG
 
-SPEEDS = [("Slow", 250), ("Normal", 100), ("Fast", 40), ("Very fast", 15)]
+SPEEDS = [("Slow", 250), ("Normal", 100), ("Fast", 25), ("Very fast", 5)]
 
 _JS = """
 <script>
