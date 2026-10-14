@@ -1,0 +1,4 @@
+numpy
+autograd
+plotly>=6
+streamlit>=1.50
