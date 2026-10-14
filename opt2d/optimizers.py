@@ -24,6 +24,7 @@ class Optimizer:
     step: Callable
     params: dict
     color: str
+    glossary: str = ""      # what the entries of state['view'] mean (shown in the internals table)
 
 
 # ---------------------------------------------------------------- SGD with momentum
@@ -39,6 +40,7 @@ def sgd_step(w, g, s, lr, momentum, nesterov, convention):
     else:                                            # classical heavy ball: m = b m + g
         s["m"] = momentum * s["m"] + g
         d = g + momentum * s["m"] if nesterov else s["m"]
+    s["view"] = {"m": s["m"].copy()}
     return w - lr * d
 
 
@@ -50,6 +52,7 @@ def adagrad_init(w):
 
 def adagrad_step(w, g, s, lr, eps):
     s["sum_sq"] = s["sum_sq"] + g * g
+    s["view"] = {"G": s["sum_sq"].copy()}
     return w - lr * g / (np.sqrt(s["sum_sq"]) + eps)
 
 
@@ -61,6 +64,7 @@ def rmsprop_init(w):
 
 def rmsprop_step(w, g, s, lr, rho, eps):
     s["v"] = rho * s["v"] + (1 - rho) * g * g
+    s["view"] = {"v": s["v"].copy()}
     return w - lr * g / (np.sqrt(s["v"]) + eps)
 
 
@@ -76,6 +80,7 @@ def adam_step(w, g, s, lr, beta1, beta2, eps):
     s["v"] = beta2 * s["v"] + (1 - beta2) * g * g
     m_hat = s["m"] / (1 - beta1 ** s["t"])
     v_hat = s["v"] / (1 - beta2 ** s["t"])
+    s["view"] = {"m\u0302": m_hat, "v\u0302": v_hat}
     return w - lr * m_hat / (np.sqrt(v_hat) + eps)
 
 
@@ -83,8 +88,12 @@ def adam_step(w, g, s, lr, beta1, beta2, eps):
 
 OPTIMIZERS = {
     "SGD + momentum": Optimizer("SGD + momentum", sgd_init, sgd_step,
-                                {"momentum": 0.9, "nesterov": False, "convention": ["ema", "classic"]}, "#0072B2"),
-    "AdaGrad": Optimizer("AdaGrad", adagrad_init, adagrad_step, {"eps": 1e-8}, "#E69F00"),
-    "RMSProp": Optimizer("RMSProp", rmsprop_init, rmsprop_step, {"rho": 0.9, "eps": 1e-8}, "#009E73"),
-    "Adam": Optimizer("Adam", adam_init, adam_step, {"beta1": 0.9, "beta2": 0.999, "eps": 1e-8}, "#D55E00"),
+                                {"momentum": 0.9, "nesterov": False, "convention": ["ema", "classic"]}, "#0072B2",
+                                "m = momentum buffer (running mix of past gradients); step = lr * m"),
+    "AdaGrad": Optimizer("AdaGrad", adagrad_init, adagrad_step, {"eps": 1e-8}, "#E69F00",
+                         "G = running SUM of squared gradients (only grows, so steps only shrink); step = lr * g / sqrt(G)"),
+    "RMSProp": Optimizer("RMSProp", rmsprop_init, rmsprop_step, {"rho": 0.9, "eps": 1e-8}, "#009E73",
+                         "v = moving AVERAGE of squared gradients (forgets the past); step = lr * g / sqrt(v)"),
+    "Adam": Optimizer("Adam", adam_init, adam_step, {"beta1": 0.9, "beta2": 0.999, "eps": 1e-8}, "#D55E00",
+                      "m\u0302, v\u0302 = bias-corrected first and second moments; step = lr * m\u0302 / sqrt(v\u0302)"),
 }

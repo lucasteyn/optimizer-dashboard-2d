@@ -39,7 +39,9 @@ class Run:
         self.iteration = 0
         self.loss0, self.gnorm0 = self.metrics(self.w0)
         self.history = {n: {"w": [self.w0.copy()], "loss": [self.loss0], "gnorm": [self.gnorm0],
-                            "lr": [float("nan")]} for n in self.names}
+                            "lr": [float("nan")],
+                            "grad": [np.full(2, np.nan)], "step": [np.full(2, np.nan)], "view": [{}]}
+                        for n in self.names}
 
     def rate(self, name):
         return self.chosen[name].get("lr") or self.lr
@@ -75,12 +77,15 @@ class Run:
                 self.alive[name] = False
                 self.messages.append(f"{name} stopped at iteration {t}: {e}.")
                 continue
-            self.w[name] = w_new
+            w_old, self.w[name] = self.w[name], w_new
             h = self.history[name]
             h["w"].append(w_new.copy())
             h["loss"].append(loss)
             h["gnorm"].append(gnorm)
             h["lr"].append(lr)
+            h["grad"].append(np.array(g, dtype=float))                  # minibatch gradient that produced this iterate
+            h["step"].append(w_new - w_old)
+            h["view"].append({k: np.array(v, dtype=float) for k, v in self.state[name].get("view", {}).items()})
         self.iteration = t
 
     def run(self, n=None):

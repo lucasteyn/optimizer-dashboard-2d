@@ -103,3 +103,27 @@ def test_changing_objective_discards_run():
     at.selectbox(key="objective").select("Beale")
     at.run()
     assert at.session_state["run"] is None
+
+
+def test_guided_example_sets_controls_and_pins_baseline():
+    at = fresh()
+    at.selectbox(key="lesson").select("Momentum in a narrow valley")
+    at.run()
+    assert at.session_state["objective"] == "Ill-conditioned quadratic" and at.session_state["iters"] == 60
+    assert not at.session_state["use::AdaGrad"]
+    click(at, "Run")
+    assert at.session_state["run"] is not None and at.session_state["ghost"] is not None
+    at.number_input(key="iters").set_value(30)                       # a manual change leaves the example
+    at.run()
+    assert at.session_state["lesson"] == "Manual / modified"
+
+
+def test_convergence_tab_and_downloads_exist_after_run():
+    at = fresh()
+    at.number_input(key="iters").set_value(30)
+    at.run()
+    click(at, "Run")
+    assert len(at.tabs) == 2 and at.tabs[1].label == "Convergence"
+    at.selectbox(key="tol_loss").select(1e-2)
+    at.run()
+    assert not at.exception

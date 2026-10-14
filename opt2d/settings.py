@@ -12,9 +12,13 @@ import math
 import numpy as np
 
 from .config import RunConfig, parse_lr
+from .lessons import LESSONS
 from .objectives import CUSTOM_NAME, CUSTOM_TEMPLATE, get_objectives, make_custom_objective
 from .optimizers import OPTIMIZERS
 from .runner import Run
+
+
+MANUAL = "Manual / modified"
 
 
 def use_key(name): return f"use::{name}"
@@ -60,12 +64,44 @@ def load_objective(values, objective, objectives):
         values[lr_key(name)] = "" if name not in obj.own_lr else f"{obj.own_lr[name]:g}"
 
 
+def apply_lesson(values, name, objectives):
+    """Load a guided example into the widget dict."""
+    lesson = next(L for L in LESSONS if L.name == name)
+    values["objective"] = lesson.objective
+    load_objective(values, lesson.objective, objectives)
+    obj = objectives[lesson.objective]
+    start = lesson.start or obj.start
+    values.update(start_x=float(start[0]), start_y=float(start[1]), lr=f"{lesson.lr:g}", iters=lesson.iters)
+    if lesson.n:
+        values["n"] = lesson.n
+    if lesson.m:
+        values["m"] = lesson.m
+    for opt in OPTIMIZERS:
+        values[use_key(opt)] = opt in lesson.optimizers
+        values.update(optimizer_defaults(opt, lesson.own_lr.get(opt)))
+        for p, v in lesson.optimizers.get(opt, {}).items():
+            values[param_key(opt, p)] = v if isinstance(v, (str, bool, int)) and not isinstance(v, float) else f"{v:g}"
+    values["lesson"] = name
+
+
+def lesson_ghost_config(cfg, name):
+    """Config of the lesson's baseline run (or None): same settings, some optimizer parameters overridden."""
+    lesson = next((L for L in LESSONS if L.name == name), None)
+    if lesson is None or not lesson.ghost:
+        return None, ""
+    chosen = {n: {**cfg.chosen[n], **ov} for n, ov in lesson.ghost.items() if n in cfg.chosen}
+    if not chosen:
+        return None, ""
+    from dataclasses import replace
+    return replace(cfg, chosen=chosen, m=lesson.ghost_m or cfg.m), lesson.ghost_label
+
+
 def defaults(objectives=None):
     """A complete widget dict: the first objective plus every view/option default."""
     objectives = objectives or get_objectives()
     values = {"n": 500, "m": 32, "seed": 0, "code": CUSTOM_TEMPLATE, "schedule": "constant", "objective": next(iter(objectives)),
-              "window": "fixed", "grid": 41, "log_loss": True, "log_norm": True, "trail": 0, "tick": 0,
-              "speed": "Normal"}
+              "window": "fixed", "grid": 41, "log_loss": True, "log_norm": True, "lesson": MANUAL,
+              "tol_loss": 1e-3, "tol_gnorm": 1e-2}
     for name in OPTIMIZERS:
         values[use_key(name)] = True
         values.update(optimizer_defaults(name))

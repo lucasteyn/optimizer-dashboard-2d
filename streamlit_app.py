@@ -3,27 +3,32 @@
 Streamlit re-runs this script on every interaction, so all state lives in ``st.session_state``: the control values
 (see opt2d/settings.py), the computed ``Run`` and the pinned ghost run.
 Run computes every iteration at once; the 2x2 figure then replays it in the browser (opt2d/player.py), so playing
-causes no reruns and no flicker, and the contour, surface and axes stay fixed.
+causes no reruns and no flicker, and the contour, surface and axes stay fixed. Speed, trail, markers and the 3-D camera
+are controls inside the player, so they never rebuild anything in Python.
 """
 
 import os
 from dataclasses import replace
 
+import plotly.graph_objects as go
 import streamlit as st
 import streamlit.components.v1 as components
 
 from opt2d import OPTIMIZERS, get_objectives
 from opt2d import settings as S
+from opt2d.analysis import convergence_rows
 from opt2d.export import history_csv
-from opt2d.figures import PLOT_CONFIG, build_figure
+from opt2d.figures import PLOT_CONFIG, build_figure, grid_xyz
+from opt2d.lessons import LESSONS
 from opt2d.objectives import CUSTOM_NAME
-from opt2d.player import player_html
+from opt2d.player import player_html, player_page
 from opt2d.schedules import SCHEDULES, sparkline_svg
 
 # Custom objectives execute user code: only switch them on for a local / trusted app (ALLOW_CUSTOM=1).
 ALLOW_CUSTOM = os.environ.get("ALLOW_CUSTOM", "") == "1"
-FRAME_MS = {"Slow": 250, "Normal": 100, "Fast": 40, "Very fast": 15}      # browser animation: ms per frame
 WINDOWS = {"fixed": "Fixed window (centre and half-width below)", "fit": "Fit to the paths after a run"}
+LOSS_TOLS = [1e-1, 1e-2, 1e-3, 1e-4, 1e-6]
+GNORM_TOLS = [1.0, 1e-1, 1e-2, 1e-3, 1e-4]
 
 st.set_page_config(page_title="2-D optimizer dashboard", layout="wide")
 ss = st.session_state
@@ -34,6 +39,17 @@ def objectives():
     return get_objectives()
 
 
+@st.cache_data(max_entries=24, show_spinner=False)
+def cached_grid(key, _run, cx, cy, half, n):
+    """Contour / surface grid. The key (objective, code, data size and seed) identifies the loss; ``_run`` is not hashed."""
+    return grid_xyz(_run, cx, cy, half, n)
+
+
+def grid_fn(cfg):
+    key = (cfg.objective, cfg.code, cfg.n, cfg.seed)
+    return lambda run, cx, cy, half, n: cached_grid(key, run, cx, cy, half, n)
+
+
 OBJ = objectives()
 if "init" not in ss:
     ss.update(S.defaults(OBJ))
@@ -41,17 +57,32 @@ if "init" not in ss:
 
 
 # ------------------------------------------------------------------ callbacks (run before the script re-runs)
+def touch():
+    """Any manual change: the settings no longer match the chosen guided example exactly."""
+    if ss.lesson != S.MANUAL:
+        ss.lesson = S.MANUAL
+
+
 def forget_run():
     ss.run, ss.figs, ss.error = None, {}, ""
 
 
+def on_lesson():
+    if ss.lesson != S.MANUAL:
+        S.apply_lesson(ss, ss.lesson, OBJ)
+        forget_run()
+        ss.ghost = None
+
+
 def on_objective():
     S.load_objective(ss, ss.objective, OBJ)
+    touch()
     forget_run()
 
 
 def restore(name):
     ss.update(S.optimizer_defaults(name, OBJ[ss.objective].own_lr.get(name) if ss.objective in OBJ else None))
+    touch()
 
 
 def on_pin():
@@ -93,6 +124,9 @@ def plot(fig, key, **kw):
 
 # ------------------------------------------------------------------ sidebar
 def sidebar():
+    st.header("Guided example")
+    st.selectbox("What to look for", [S.MANUAL] + [L.name for L in LESSONS], key="lesson", on_change=on_lesson)
+
     st.header("Problem")
     st.selectbox("Objective", list(OBJ) + [CUSTOM_NAME], key="objective", on_change=on_objective)
     if ss.objective != CUSTOM_NAME:
@@ -104,36 +138,36 @@ def sidebar():
         st.caption("Set the plotted window under View.")
     has_data = ss.objective != CUSTOM_NAME and OBJ[ss.objective].make_data is not None
     c = st.columns(3)
-    c[0].number_input("N samples", 10, 100000, step=50, key="n", disabled=not has_data)
-    c[1].number_input("Batch m", 1, 100000, step=8, key="m", disabled=not has_data)
-    c[2].number_input("Seed", 0, 10**6, key="seed", disabled=not has_data)
+    c[0].number_input("N samples", 10, 100000, step=50, key="n", disabled=not has_data, on_change=touch)
+    c[1].number_input("Batch m", 1, 100000, step=8, key="m", disabled=not has_data, on_change=touch)
+    c[2].number_input("Seed", 0, 10**6, key="seed", disabled=not has_data, on_change=touch)
     st.markdown("**Start point** (or click the contour before a run)")
     c = st.columns(2)
-    c[0].number_input("x", step=0.1, format="%.3f", key="start_x")
-    c[1].number_input("y", step=0.1, format="%.3f", key="start_y")
+    c[0].number_input("x", step=0.1, format="%.3f", key="start_x", on_change=touch)
+    c[1].number_input("y", step=0.1, format="%.3f", key="start_y", on_change=touch)
 
     st.header("Optimizers")
     for name, opt in OPTIMIZERS.items():
-        st.checkbox(name, key=S.use_key(name))
+        st.checkbox(name, key=S.use_key(name), on_change=touch)
         with st.expander("settings"):
-            st.text_input("own learning rate (blank = global)", key=S.lr_key(name))
+            st.text_input("own learning rate (blank = global)", key=S.lr_key(name), on_change=touch)
             for p, default in opt.params.items():
                 key, kind = S.param_key(name, p), S.param_kind(default)
                 if kind == "bool":
-                    st.checkbox(p, key=key)
+                    st.checkbox(p, key=key, on_change=touch)
                 elif kind == "int":
-                    st.number_input(p, 0, 1000, step=1, key=key)
+                    st.number_input(p, 0, 1000, step=1, key=key, on_change=touch)
                 elif kind == "float":
-                    st.text_input(p, key=key)
+                    st.text_input(p, key=key, on_change=touch)
                 else:
-                    st.selectbox(p, default, key=key)
+                    st.selectbox(p, default, key=key, on_change=touch)
             st.button("Restore defaults", key=f"restore_{name}", on_click=restore, args=(name,))
 
     st.header("Run")
-    st.text_input("Global learning rate", key="lr")
-    st.number_input("Max iterations", 1, 20000, step=10, key="iters")
+    st.text_input("Global learning rate", key="lr", on_change=touch)
+    st.number_input("Max iterations", 1, 20000, step=10, key="iters", on_change=touch)
     labels = dict((v, k) for k, v in SCHEDULES)
-    st.selectbox("Learning-rate schedule", list(labels), format_func=labels.get, key="schedule")
+    st.selectbox("Learning-rate schedule", list(labels), format_func=labels.get, key="schedule", on_change=touch)
     st.markdown(sparkline_svg(ss.schedule, int(ss.iters)), unsafe_allow_html=True)
 
     with st.expander("View"):
@@ -146,8 +180,7 @@ def sidebar():
         st.checkbox("Log-scale contour and surface", key="log_z")
         st.checkbox("Log loss axis", key="log_loss")
         st.checkbox("Log gradient-norm axis", key="log_norm")
-        st.number_input("Trail length (0 = whole path)", 0, 20000, step=10, key="trail")
-        st.number_input("Mark every k-th iteration (0 = off)", 0, 1000, step=5, key="tick")
+        st.caption("Speed, trail length, iteration markers and the 3-D camera are controls above the plots.")
 
 
 with st.sidebar:
@@ -155,18 +188,20 @@ with st.sidebar:
 
 # ------------------------------------------------------------------ main area: buttons and run
 st.title("2-D optimizer dashboard")
+lesson = next((L for L in LESSONS if L.name == ss.lesson), None)
+if lesson:
+    st.info(lesson.note)
 
 try:
     cfg, cfg_error = S.config_from(ss), ""
 except ValueError as e:
     cfg, cfg_error = None, str(e)
 
-b = st.columns([1, 1, 1, 1, 1.4, 1.4])
+b = st.columns([1, 1, 1, 1, 1.3, 1.3])
 run_clicked = b[0].button("Run", type="primary", width="stretch", disabled=cfg is None)
 b[1].button("Reset", on_click=forget_run, width="stretch")
 b[2].button("Pin run", on_click=on_pin, disabled=ss.run is None, width="stretch")
 b[3].button("Clear pin", on_click=on_unpin, disabled=ss.ghost is None, width="stretch")
-b[4].selectbox("Play speed", list(FRAME_MS), key="speed", label_visibility="collapsed")
 
 if run_clicked:
     try:
@@ -177,6 +212,12 @@ if run_clicked:
             if k % 10 == 0:
                 bar.progress((k + 1) / run.max_iters, text=f"Computing iteration {k + 1} of {run.max_iters}")
         bar.empty()
+        if lesson:                                      # the example's baseline run, pinned automatically
+            base_cfg, prefix = S.lesson_ghost_config(cfg, lesson.name)
+            if base_cfg is not None:
+                base = S.build_run(base_cfg, OBJ, ALLOW_CUSTOM)
+                base.run()
+                ss.ghost = S.pin_from(base, prefix)
         ss.update(run=run, run_cfg=cfg, figs={}, error="")
         run_ok = True
     except Exception as e:                              # bad input or user code: show it, keep the app alive
@@ -184,9 +225,6 @@ if run_clicked:
         run_ok = False
     if run_ok:
         st.rerun()                                      # redraw the buttons (Pin, ...) now that a run exists
-with b[5]:
-    if ss.run is not None:
-        st.download_button("Download CSV", history_csv(ss.run), "optimizer_run.csv", "text/csv", width="stretch")
 
 if cfg_error:
     st.error(cfg_error)
@@ -207,17 +245,15 @@ def view_dict(window):
                 log_z=bool(ss.log_z), log_loss=bool(ss.log_loss), log_norm=bool(ss.log_norm))
 
 
-def show_run(run):
+def play_html(run):
+    """(html, height) of the player; rebuilt only when the run, the window/grid/log options or the pin change."""
     view = view_dict(ss.window)
-    sig = (id(run), tuple(view.values()), id(ss.ghost), int(ss.trail), int(ss.tick), ss.speed)
+    sig = (id(run), tuple(view.values()), id(ss.ghost))
     cached = ss.figs.get("play")
     if cached is None or cached[0] != sig:
-        fig, info = build_figure(run, view, ss.ghost)
-        html = player_html(fig, info, run.iteration, FRAME_MS[ss.speed], int(ss.trail), int(ss.tick))
-        ss.figs["play"] = cached = (sig, html)
-    st.caption("Press Play or drag the slider: the browser replays the stored run, so nothing is recomputed. "
-               "The contour, surface and axes stay fixed while the paths grow.")
-    embed(*cached[1])
+        fig, info = build_figure(run, view, ss.ghost, grid_fn=grid_fn(ss.run_cfg))
+        ss.figs["play"] = cached = (sig, player_html(fig, info, run.iteration))
+    return cached[1]
 
 
 def show_preview(run):
@@ -225,22 +261,37 @@ def show_preview(run):
     sig = (id(run), tuple(view.values()), ss.click_n)
     cached = ss.figs.get("preview")
     if cached is None or cached[0] != sig:
-        fig, info = build_figure(run, view, click=True)
+        fig, info = build_figure(run, view, click=True, grid_fn=grid_fn(cfg))
         ss.figs["preview"] = cached = (sig, fig, info)
     plot(cached[1], f"preview_{ss.click_n}", on_select=on_click, selection_mode="points")
     st.caption("Press Run to compute the optimizers, or click the contour to set the start point.")
 
 
-def status_table(run):
-    rows = []
-    for name in run.names:
-        h = run.history[name]
-        end = len(h["loss"]) - 1
-        rows.append({"Optimizer": name, "iteration": end, "loss": f"{h['loss'][end]:.5g}",
-                     "grad norm": f"{h['gnorm'][end]:.4g}", "point": f"({h['w'][end][0]:.4g}, {h['w'][end][1]:.4g})",
-                     "status": "finished" if run.alive[name] else "stopped (non-finite)"})
-    st.markdown(f"**Final values** (iteration {run.iteration})")
-    st.dataframe(rows, hide_index=True, width="stretch")
+def show_convergence(run):
+    c = st.columns(2)
+    c[0].selectbox("Loss gap tolerance", LOSS_TOLS, key="tol_loss", format_func=lambda v: f"loss - best <= {v:g}")
+    c[1].selectbox("Gradient-norm tolerance", GNORM_TOLS, key="tol_gnorm", format_func=lambda v: f"||grad|| <= {v:g}")
+    rows, best, known = convergence_rows(run, float(ss.tol_loss), float(ss.tol_gnorm))
+    st.dataframe([{"Optimizer": r["name"],
+                   "iterations to loss gap": "not reached" if r["loss_iter"] is None else r["loss_iter"],
+                   "iterations to gradient norm": "not reached" if r["gnorm_iter"] is None else r["gnorm_iter"],
+                   "final loss gap": f"{r['final_gap']:.3g}", "final gradient norm": f"{r['final_gnorm']:.3g}",
+                   "status": "stopped (non-finite)" if r["stopped"] else "finished"} for r in rows],
+                 hide_index=True, width="stretch")
+    fig = go.Figure()
+    for r in rows:
+        reached = r["loss_iter"] is not None
+        fig.add_bar(x=[r["name"]], y=[r["loss_iter"] if reached else run.max_iters], name=r["name"],
+                    marker=dict(color=OPTIMIZERS[r["name"]].color, opacity=1.0 if reached else 0.3),
+                    text=[str(r["loss_iter"]) if reached else "not reached"], textposition="outside", showlegend=False)
+    fig.update_layout(template="plotly_white", height=300, margin=dict(l=40, r=20, t=30, b=40),
+                      title=dict(text=f"Iterations until loss - best <= {float(ss.tol_loss):g}", font=dict(size=13)),
+                      yaxis=dict(title="iterations", range=[0, run.max_iters * 1.15]))
+    plot(fig, "convergence_bar")
+    st.caption(("best = loss at the best known minimum (full data)." if known else
+                "No minimum is known here, so best = the lowest loss seen in this run.") +
+               " With minibatches the measured gradient norm is on the full data and may never get small. "
+               "A faded bar means the tolerance was not reached within the maximum iterations.")
 
 
 if ss.run is None:
@@ -250,5 +301,15 @@ if ss.run is None:
         except Exception as e:
             st.error(f"{type(e).__name__}: {e}")
 else:
-    show_run(ss.run)
-    status_table(ss.run)
+    html = play_html(ss.run)
+    with b[4]:
+        st.download_button("Download CSV", history_csv(ss.run), "optimizer_run.csv", "text/csv", width="stretch")
+    with b[5]:
+        st.download_button("Download page", player_page(html[0]), "optimizer_run.html", "text/html", width="stretch")
+    dash, conv = st.tabs(["Dashboard", "Convergence"])
+    with dash:
+        st.caption("Press Play or drag the slider: the browser replays the stored run, so nothing is recomputed. "
+                   "The contour, surface and axes stay fixed while the paths grow.")
+        embed(*html)
+    with conv:
+        show_convergence(ss.run)

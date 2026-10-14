@@ -119,5 +119,64 @@ def test_figure_and_player_build_for_every_objective_with_ghost():
         view = dict(window="fit", cx=v["cx"], cy=v["cy"], half=v["half_width"], grid=21, log_z=o.log_z,
                     log_loss=True, log_norm=True)
         fig, info = build_figure(run, view, ghost=S.pin_from(run))
-        html, height = player_html(fig, info, run.iteration, tick=5, trail=10)
-        assert "Plotly" in html and height > 800
+        html, height = player_html(fig, info, run.iteration)
+        assert "Plotly" in html and height > 900 and "Inside the optimizer" in html and "data-cam" in html
+
+
+def test_internals_are_recorded():
+    run = S.build_run(S.config_from(S.defaults(OBJ)), OBJ)
+    run.run(5)
+    for name in run.names:
+        h = run.history[name]
+        assert len(h["grad"]) == len(h["step"]) == len(h["view"]) == 6
+        assert h["view"][3] and np.all(np.isfinite(h["step"][3]))
+        assert np.allclose(h["w"][3] - h["w"][2], h["step"][3])        # step is exactly the change of the iterate
+
+
+def test_convergence_rows():
+    from opt2d.analysis import convergence_rows, first_below
+    assert first_below([5, 3, 1, 0.5], 1.0) == 2 and first_below([5, 3], 1.0) is None
+    v = S.defaults(OBJ)
+    v["objective"] = "Quadratic bowl"
+    S.load_objective(v, "Quadratic bowl", OBJ)
+    run = S.build_run(S.config_from(v), OBJ)
+    run.run()
+    rows, best, known = convergence_rows(run, 1e-3, 1e-2)
+    assert known and abs(best) < 1e-12 and all(r["loss_iter"] is not None for r in rows)
+
+
+def test_every_lesson_loads_runs_and_has_a_baseline_when_declared():
+    from opt2d.lessons import LESSONS
+    for L in LESSONS:
+        v = S.defaults(OBJ)
+        S.apply_lesson(v, L.name, OBJ)
+        cfg = S.config_from(v)
+        assert set(cfg.chosen) == set(L.optimizers)
+        run = S.build_run(cfg, OBJ)
+        run.run()
+        base_cfg, _ = S.lesson_ghost_config(cfg, L.name)
+        assert (base_cfg is not None) == bool(L.ghost)
+        if base_cfg is not None:
+            S.build_run(base_cfg, OBJ).run()
+
+
+def test_momentum_lesson_baseline_is_slower():
+    from opt2d.lessons import LESSONS
+    L = next(l for l in LESSONS if l.name.startswith("Momentum"))
+    v = S.defaults(OBJ)
+    S.apply_lesson(v, L.name, OBJ)
+    cfg = S.config_from(v)
+    live = S.build_run(cfg, OBJ); live.run()
+    base = S.build_run(S.lesson_ghost_config(cfg, L.name)[0], OBJ); base.run()
+    assert live.history["SGD + momentum"]["loss"][-1] < 0.5 * base.history["SGD + momentum"]["loss"][-1]
+
+
+def test_grid_function_is_reusable_for_caching():
+    from opt2d.figures import grid_xyz
+    run = S.build_run(S.config_from(S.defaults(OBJ)), OBJ)
+    a = grid_xyz(run, 0.0, 0.0, 2.0, 21)
+    b = grid_xyz(run, 0.0, 0.0, 2.0, 21)
+    assert all(np.array_equal(x, y, equal_nan=True) for x, y in zip(a, b))
+    view = dict(window="fixed", cx=0.0, cy=0.0, half=2.0, grid=21, log_z=False, log_loss=True, log_norm=True)
+    fig, _ = build_figure(run, view, grid_fn=lambda *args: a)
+    assert fig.data[0].z.shape == (21, 21) and fig.data[-1] is not None

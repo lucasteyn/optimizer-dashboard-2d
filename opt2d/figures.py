@@ -64,6 +64,12 @@ def fit_range(arrays, log):
     return [lo - pad, hi + pad], hi - lo
 
 
+def grid_xyz(run, cx, cy, half, n):
+    """xs, ys, loss grid over the window (the expensive part of a figure: the app caches it)."""
+    xs, ys = np.linspace(cx - half, cx + half, n), np.linspace(cy - half, cy + half, n)
+    return xs, ys, grid_values(run.objective, run.data, xs, ys)
+
+
 def window_of(run, view, ghost):
     """(cx, cy, half) of the plotted window: fixed, or fitted to start, optima and every path point."""
     cx, cy, half = view["cx"], view["cy"], view["half"]
@@ -78,17 +84,17 @@ def window_of(run, view, ghost):
 
 
 # ---------------------------------------------------------------- the figure
-def build_figure(run, view, ghost=None, click=False):
+def build_figure(run, view, ghost=None, click=False, grid_fn=grid_xyz):
     """Returns ``(fig, info)``. ``view``: window ('fixed'|'fit'), cx, cy, half, grid, log_z, log_loss, log_norm.
 
     ``info`` has everything the player needs: per optimizer the full history and the trace indices to move.
     ``click`` adds an invisible grid of markers on the contour so that a click can set the start point.
+    ``grid_fn(run, cx, cy, half, n)`` returns ``(xs, ys, Z)``; pass a cached version to skip the grid evaluation.
     """
     obj = run.objective
     cx, cy, half = window_of(run, view, ghost)
     n = int(view["grid"])
-    xs, ys = np.linspace(cx - half, cx + half, n), np.linspace(cy - half, cy + half, n)
-    Z = grid_values(obj, run.data, xs, ys)
+    xs, ys, Z = grid_fn(run, cx, cy, half, n)
 
     loss_paths = [h["loss"] for h in run.history.values()] + [[run.loss0]]
     if ghost:
@@ -98,7 +104,7 @@ def build_figure(run, view, ghost=None, click=False):
     Zt = transform(Z, floor, log_z)
 
     fig = make_subplots(rows=2, cols=2, specs=[[{}, {}], [{}, {"type": "scene"}]], subplot_titles=TITLES,
-                        horizontal_spacing=0.07, vertical_spacing=0.12)
+                        horizontal_spacing=0.07, vertical_spacing=0.10)
     for ann in fig.layout.annotations:
         ann.font = dict(size=12)
 
@@ -124,7 +130,8 @@ def build_figure(run, view, ghost=None, click=False):
 
     # --- surface (the same window and colour scale as the contour)
     z_lift = 0.0
-    add(go.Surface(x=xs, y=ys, z=Zt, showscale=False, opacity=0.85, colorscale="Blues", hoverinfo="skip",
+    si = np.unique(np.round(np.linspace(0, n - 1, min(n, 31))).astype(int))        # a coarser grid is enough in 3-D
+    add(go.Surface(x=xs[si], y=ys[si], z=Zt[np.ix_(si, si)], showscale=False, opacity=0.85, colorscale="Blues", hoverinfo="skip",
                    contours=dict(z=dict(show=False))), 2, 2)
 
     def z_of(loss):
@@ -191,7 +198,8 @@ def build_figure(run, view, ghost=None, click=False):
             x=np.array(h["w"])[:, 0].tolist(), y=np.array(h["w"])[:, 1].tolist(),
             z=(z_of(np.array(h["loss"])) + z_lift).tolist(),
             loss=np.maximum(h["loss"], 1e-16).tolist(), gnorm=np.maximum(h["gnorm"], 1e-16).tolist(),
-            lr=[None if v != v else v for v in h["lr"]], alive=bool(run.alive[name]))
+            lr=[None if v != v else v for v in h["lr"]], alive=bool(run.alive[name]),
+            grad=np.array(h["grad"]), step=np.array(h["step"]), view=h["view"], glossary=OPTIMIZERS[name].glossary)
 
     # --- fixed axes: nothing rescales while the run is replayed
     fig.update_xaxes(range=[cx - half, cx + half], row=1, col=1, title_text="x", title_standoff=2)
@@ -210,9 +218,11 @@ def build_figure(run, view, ghost=None, click=False):
                          dtick=step if wide else None, exponentformat="power" if wide else "B", row=row, col=col)
     zrange = [zmin - 0.02 * (zmax - zmin), zmax + 0.02 * (zmax - zmin)]
     fig.update_layout(
-        template="plotly_white", font=dict(size=11), height=820, margin=dict(l=55, r=30, t=40, b=60),
+        template="plotly_white", font=dict(size=11), height=900, margin=dict(l=55, r=30, t=40, b=60),
         uirevision="keep", modebar=dict(orientation="v"), legend=dict(orientation="h", x=0, y=-0.06),
-        scene=dict(xaxis=dict(range=[cx - half, cx + half], title="x"), yaxis=dict(range=[cy - half, cy + half], title="y"),
-                   zaxis=dict(range=zrange, title="log loss" if log_z else "loss"),
-                   aspectmode="manual", aspectratio=dict(x=1, y=1, z=0.6), camera=dict(eye=dict(x=1.5, y=-1.6, z=0.9))))
+        scene=dict(xaxis=dict(range=[cx - half, cx + half], title="x", nticks=5, tickfont=dict(size=9)),
+                   yaxis=dict(range=[cy - half, cy + half], title="y", nticks=5, tickfont=dict(size=9)),
+                   zaxis=dict(range=zrange, title="log loss" if log_z else "loss", nticks=5, tickfont=dict(size=9)),
+                   aspectmode="manual", aspectratio=dict(x=1, y=1, z=0.7),
+                   camera=dict(eye=dict(x=1.2, y=-1.3, z=0.8), up=dict(x=0, y=0, z=1))))
     return go.Figure(fig), info
