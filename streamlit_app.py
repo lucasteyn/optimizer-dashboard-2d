@@ -138,6 +138,15 @@ def plot(fig, key, **kw):
 
 
 # ------------------------------------------------------------------ sidebar
+HELP = {
+    "momentum": "Fraction of the previous velocity that is kept at each step (0 = plain SGD).",
+    "rho": "Decay rate of the running average of squared gradients.",
+    "beta1": "Decay rate of the running average of the gradient (first moment).",
+    "beta2": "Decay rate of the running average of squared gradients (second moment).",
+    "eps": "Small constant added to the denominator for numerical stability.",
+}
+
+
 def sidebar():
     st.header("Guided example")
     st.selectbox("What to look for", [S.MANUAL] + [L.name for L in LESSONS], key="lesson", on_change=on_lesson)
@@ -169,18 +178,20 @@ def sidebar():
             for p, default in opt.params.items():
                 key, kind = S.param_key(name, p), S.param_kind(default)
                 if kind == "bool":
-                    st.checkbox(p, key=key, on_change=touch)
+                    st.checkbox(p, key=key, on_change=touch, help=HELP.get(p))
                 elif kind == "int":
-                    st.number_input(p, 0, 1000, step=1, key=key, on_change=touch)
+                    st.number_input(p, 0, 1000, step=1, key=key, on_change=touch, help=HELP.get(p))
                 elif kind == "float":
-                    st.text_input(p, key=key, on_change=touch)
+                    st.text_input(p, key=key, on_change=touch, help=HELP.get(p))
                 else:
                     st.selectbox(p, default, key=key, on_change=touch)
             st.button("Restore defaults", key=f"restore_{name}", on_click=restore, args=(name,))
 
     st.header("Run")
-    st.text_input("Global learning rate", key="lr", on_change=touch)
-    st.number_input("Max iterations", 1, 20000, step=10, key="iters", on_change=touch)
+    st.text_input("Global learning rate", key="lr", on_change=touch,
+                  help="Step size used by every optimizer unless it has its own learning rate in its settings.")
+    st.number_input("Max iterations", 1, 20000, step=10, key="iters", on_change=touch,
+                    help="The run always takes exactly this many steps.")
     labels = dict((v, k) for k, v in SCHEDULES)
     st.selectbox("Learning-rate schedule", list(labels), format_func=labels.get, key="schedule", on_change=touch)
     st.markdown(sparkline_svg(ss.schedule, int(ss.iters)), unsafe_allow_html=True)
@@ -203,8 +214,14 @@ with st.sidebar:
 
 # ------------------------------------------------------------------ main area: buttons and run
 st.title("2-D Optimizer Dashboard")
-st.caption("Luca Steyn · Statistics and Actuarial Science, Stellenbosch University · "
-           "Compare SGD with momentum, AdaGrad, RMSProp and Adam on a function of two variables")
+st.markdown("**Luca (ML) Steyn** · Claude Code")
+st.caption("Watch SGD with momentum, AdaGrad, RMSProp and Adam descend a function of two variables, "
+           "side by side on fixed contour, 3-D, loss and gradient-norm plots.")
+with st.expander("How to use this app"):
+    st.markdown(
+        "1. **Pick** a guided example, or choose an objective in the sidebar.\n"
+        "2. **Set a start point** by typing x and y, or by clicking the contour before a run.\n"
+        "3. **Press Run**, then Play or drag the slider. Use Pin run to keep a run for comparison.")
 lesson = next((L for L in LESSONS if L.name == ss.lesson), None)
 if lesson:
     st.info(lesson.note)
@@ -329,6 +346,7 @@ def show_convergence(run):
 
 
 if ss.run is None:
+    st.info("Click the contour to choose a start point, then press **Run**.")
     if cfg is not None:
         try:
             show_preview(S.build_run(replace(cfg, chosen={}), OBJ, ALLOW_CUSTOM, need_optimizers=False))
@@ -348,3 +366,7 @@ else:
         show_picker(ss.run)
     with conv:
         show_convergence(ss.run)
+
+st.divider()
+st.caption("Open source (MIT licence) · [github.com/lucasteyn](https://github.com/lucasteyn) · "
+           "Built with Streamlit, Plotly and Autograd")

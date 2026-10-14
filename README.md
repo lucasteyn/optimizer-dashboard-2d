@@ -1,4 +1,6 @@
-# 2-D optimizer dashboard (Streamlit)
+# 2-D Optimizer Dashboard (Streamlit)
+
+By Luca (ML) Steyn · Claude Code · [github.com/lucasteyn](https://github.com/lucasteyn) · MIT licence
 
 Compare SGD with momentum, AdaGrad, RMSProp and Adam on a function of two variables `w = (x, y)`.
 One page, four panels that animate on **fixed** axes:

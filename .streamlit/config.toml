@@ -3,3 +3,7 @@ headless = true
 
 [browser]
 gatherUsageStats = false
+
+[theme]
+primaryColor = "#0072B2"
+font = "sans serif"

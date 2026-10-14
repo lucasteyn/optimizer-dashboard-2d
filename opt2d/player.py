@@ -130,7 +130,7 @@ def player_html(fig, info, last, max_frames=200):
 <div style="{_CSS}color:#333">
   <label>Speed <select id="speed">{speed}</select></label>
   <label>Trail <input id="trail" type="number" min="0" value="0" style="width:64px" title="0 = whole path"></label>
-  <label>Mark every <input id="tick" type="number" min="0" value="0" style="width:56px" title="0 = off"> it.</label>
+  <label title="Draw a marker every k iterations along each path (0 = off)">Mark every <input id="tick" type="number" min="0" value="0" style="width:56px" title="0 = off"> k iterations</label>
   <span style="margin-left:12px">3-D view:</span>
   <button data-cam="iso">Isometric</button><button data-cam="top">Top</button><button data-cam="side">Side</button>
   <label><input id="spin" type="checkbox"> auto-rotate</label>

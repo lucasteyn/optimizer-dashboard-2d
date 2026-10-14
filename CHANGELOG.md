@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0
+- Title "2-D Optimizer Dashboard" with byline and one-line description; page icon.
+- "How to use this app" expander, empty-state hint before the first run, help tooltips on settings.
+- "Mark every k iterations" label; footer with MIT licence and GitHub link; theme colour; LICENSE file.
+
 ## 0.3.0
 - The pinned run is drawn in the click-to-set-start preview.
 - After a run: "Pick the next start point by clicking the contour" under the player shows a compact contour with the run
