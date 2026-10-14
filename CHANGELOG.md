@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+- Player is an explicit light card, so tables stay readable in Streamlit's dark theme (same look as the HTML export).
+- Iteration markers are larger (size 11, white outline).
+
 ## 0.2.0
 - Player: speed, trail, iteration markers and 3-D camera presets / auto-rotate are browser controls (no rebuild);
   larger 3-D panel; standalone HTML download.

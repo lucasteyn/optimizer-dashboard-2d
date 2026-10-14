@@ -153,7 +153,10 @@ def player_html(fig, info, last, max_frames=200):
     script = (_JS.replace("__DATA__", json.dumps(data, separators=(",", ":"))).replace("__TS__", json.dumps(ts))
               .replace("__INT__", json.dumps(ints, separators=(",", ":"))))
     extra = 48 + 40 + 60 + 24 * (len(data) + 1) * 2 + 20 * len(data) + 40
-    return controls + plot + tables + script, height + extra
+    # An explicit light card: the plots are white, so the page must not inherit Streamlit's dark theme (black text on dark).
+    style = "<style>html,body{margin:0;background:#fff;color:#222}</style>"
+    card = "<div style='background:#fff;color:#222;padding:6px 8px;border-radius:6px'>"
+    return style + card + controls + plot + tables + "</div>" + script, height + extra
 
 
 def player_page(snippet, title="2-D optimizer dashboard"):

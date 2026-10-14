@@ -177,7 +177,7 @@ def build_figure(run, view, ghost=None, click=False, grid_fn=grid_xyz):
             path=add(go.Scatter(x=[w0[0]], y=[w0[1]], mode="lines", name=name, legendgroup=name,
                                 line=dict(color=c, width=2.5)), 1, 1),
             tick=add(go.Scatter(x=[], y=[], mode="markers", legendgroup=name, showlegend=False, hoverinfo="skip",
-                                marker=dict(symbol="diamond", size=6, color=c)), 1, 1),
+                                marker=dict(symbol="diamond", size=11, color=c, line=dict(color="white", width=1))), 1, 1),
             head=add(go.Scatter(x=[w0[0]], y=[w0[1]], mode="markers", legendgroup=name, showlegend=False,
                                 hoverinfo="skip", marker=dict(size=10, color=c, line=dict(color="white", width=1.5))), 1, 1),
             lline=add(go.Scatter(x=[0], y=[l0], mode="lines", legendgroup=name, showlegend=False,
