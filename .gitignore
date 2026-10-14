@@ -20,3 +20,18 @@ venv/
 .DS_Store
 Thumbs.db
 _to_delete/
+
+# Local-only working files (not part of the published app)
+handoff*.md
+_to_delete/
+.git/stale-*
+*.lock
+*.log
+*.tmp
+.streamlit/secrets.toml
+.conda/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+p*.html
