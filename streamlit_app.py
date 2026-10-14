@@ -30,7 +30,7 @@ WINDOWS = {"fixed": "Fixed window (centre and half-width below)", "fit": "Fit to
 LOSS_TOLS = [1e-1, 1e-2, 1e-3, 1e-4, 1e-6]
 GNORM_TOLS = [1.0, 1e-1, 1e-2, 1e-3, 1e-4]
 
-st.set_page_config(page_title="2-D optimizer dashboard", layout="wide")
+st.set_page_config(page_title="2-D optimizer dashboard", page_icon="📉", layout="wide")
 ss = st.session_state
 
 
@@ -202,7 +202,9 @@ with st.sidebar:
     sidebar()
 
 # ------------------------------------------------------------------ main area: buttons and run
-st.title("2-D optimizer dashboard")
+st.title("2-D Optimizer Dashboard")
+st.caption("Luca Steyn · Statistics and Actuarial Science, Stellenbosch University · "
+           "Compare SGD with momentum, AdaGrad, RMSProp and Adam on a function of two variables")
 lesson = next((L for L in LESSONS if L.name == ss.lesson), None)
 if lesson:
     st.info(lesson.note)
