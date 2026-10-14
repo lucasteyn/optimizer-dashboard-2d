@@ -13,7 +13,7 @@ from .optimizers import OPTIMIZERS
 
 PLOT_CONFIG = {"responsive": True, "toImageButtonOptions": {"format": "png", "scale": 2}}
 CONTOUR_COLORS = [[0, "#f4f7fa"], [1, "#a9b7c6"]]
-TITLES = ["Trajectory", "Loss (full objective)", "Gradient norm", "Objective surface and trajectory"]
+TITLES = ["Trajectory", "Objective surface and trajectory", "Loss (full objective)", "Gradient norm"]
 
 
 def color(name):
@@ -103,7 +103,7 @@ def build_figure(run, view, ghost=None, click=False, grid_fn=grid_xyz):
     log_z = bool(view["log_z"])
     Zt = transform(Z, floor, log_z)
 
-    fig = make_subplots(rows=2, cols=2, specs=[[{}, {}], [{}, {"type": "scene"}]], subplot_titles=TITLES,
+    fig = make_subplots(rows=2, cols=2, specs=[[{}, {"type": "scene"}], [{}, {}]], subplot_titles=TITLES,
                         horizontal_spacing=0.07, vertical_spacing=0.10)
     for ann in fig.layout.annotations:
         ann.font = dict(size=12)
@@ -132,7 +132,7 @@ def build_figure(run, view, ghost=None, click=False, grid_fn=grid_xyz):
     z_lift = 0.0
     si = np.unique(np.round(np.linspace(0, n - 1, min(n, 31))).astype(int))        # a coarser grid is enough in 3-D
     add(go.Surface(x=xs[si], y=ys[si], z=Zt[np.ix_(si, si)], showscale=False, opacity=0.85, colorscale="Blues", hoverinfo="skip",
-                   contours=dict(z=dict(show=False))), 2, 2)
+                   contours=dict(z=dict(show=False))), 1, 2)
 
     def z_of(loss):
         return transform(loss, floor, log_z)
@@ -149,9 +149,9 @@ def build_figure(run, view, ghost=None, click=False, grid_fn=grid_xyz):
     if len(optima):
         zo = z_of(np.array([float(obj.loss(o, run.data)) for o in optima])) + z_lift
         add(go.Scatter3d(x=optima[:, 0], y=optima[:, 1], z=zo, mode="markers", name="minimum", showlegend=False,
-                         marker=dict(symbol="x", size=4, color="black")), 2, 2)
+                         marker=dict(symbol="x", size=4, color="black")), 1, 2)
     add(go.Scatter3d(x=[run.w0[0]], y=[run.w0[1]], z=[float(z_of(np.array([run.loss0]))[0]) + z_lift], mode="markers",
-                     name="start", showlegend=False, marker=dict(size=4, color="white", line=dict(color="black", width=2))), 2, 2)
+                     name="start", showlegend=False, marker=dict(size=4, color="white", line=dict(color="black", width=2))), 1, 2)
 
     # --- pinned run (static, faded, underneath the live traces)
     for name in (ghost["names"] if ghost else []):
@@ -162,9 +162,9 @@ def build_figure(run, view, ghost=None, click=False, grid_fn=grid_xyz):
         for key, row in (("loss", 1), ("gnorm", 2)):
             y = np.maximum(ghost[key][name], 1e-16)
             add(go.Scatter(x=list(range(len(y))), y=y, mode="lines", hoverinfo="skip", showlegend=False, opacity=0.4,
-                           line=dict(width=2, dash="dot", **style)), *((1, 2) if key == "loss" else (2, 1)))
+                           line=dict(width=2, dash="dot", **style)), *((2, 1) if key == "loss" else (2, 2)))
         add(go.Scatter3d(x=w[:, 0], y=w[:, 1], z=z_of(np.array(ghost["loss"][name])) + z_lift, mode="lines",
-                         hoverinfo="skip", showlegend=False, opacity=0.4, line=dict(width=3, dash="dot", **style)), 2, 2)
+                         hoverinfo="skip", showlegend=False, opacity=0.4, line=dict(width=3, dash="dot", **style)), 1, 2)
 
     # --- live traces: one set per optimizer, drawn at iteration 0 and moved by the player
     info = {"opt": {}, "click": click_idx, "window": (cx, cy, half), "z_lift": z_lift}
@@ -181,17 +181,17 @@ def build_figure(run, view, ghost=None, click=False, grid_fn=grid_xyz):
             head=add(go.Scatter(x=[w0[0]], y=[w0[1]], mode="markers", legendgroup=name, showlegend=False,
                                 hoverinfo="skip", marker=dict(size=10, color=c, line=dict(color="white", width=1.5))), 1, 1),
             lline=add(go.Scatter(x=[0], y=[l0], mode="lines", legendgroup=name, showlegend=False,
-                                 line=dict(color=c, width=2)), 1, 2),
-            lhead=add(go.Scatter(x=[0], y=[l0], mode="markers", legendgroup=name, showlegend=False, hoverinfo="skip",
-                                 marker=dict(size=9, color=c, line=dict(color="white", width=1))), 1, 2),
-            gline=add(go.Scatter(x=[0], y=[g0], mode="lines", legendgroup=name, showlegend=False,
                                  line=dict(color=c, width=2)), 2, 1),
-            ghead=add(go.Scatter(x=[0], y=[g0], mode="markers", legendgroup=name, showlegend=False, hoverinfo="skip",
+            lhead=add(go.Scatter(x=[0], y=[l0], mode="markers", legendgroup=name, showlegend=False, hoverinfo="skip",
                                  marker=dict(size=9, color=c, line=dict(color="white", width=1))), 2, 1),
+            gline=add(go.Scatter(x=[0], y=[g0], mode="lines", legendgroup=name, showlegend=False,
+                                 line=dict(color=c, width=2)), 2, 2),
+            ghead=add(go.Scatter(x=[0], y=[g0], mode="markers", legendgroup=name, showlegend=False, hoverinfo="skip",
+                                 marker=dict(size=9, color=c, line=dict(color="white", width=1))), 2, 2),
             p3=add(go.Scatter3d(x=[w0[0]], y=[w0[1]], z=[z0], mode="lines", legendgroup=name, showlegend=False,
-                                line=dict(color=c, width=5)), 2, 2),
+                                line=dict(color=c, width=5)), 1, 2),
             h3=add(go.Scatter3d(x=[w0[0]], y=[w0[1]], z=[z0], mode="markers", legendgroup=name, showlegend=False,
-                                hoverinfo="skip", marker=dict(size=5, color=c)), 2, 2),
+                                hoverinfo="skip", marker=dict(size=5, color=c)), 1, 2),
         )
         info["opt"][name] = dict(
             idx=ids, color=c,
@@ -208,8 +208,8 @@ def build_figure(run, view, ghost=None, click=False, grid_fn=grid_xyz):
     log_loss = bool(view["log_loss"]) and all(min(a) > 0 for a in loss_paths if len(a))
     log_norm = bool(view["log_norm"])
     gn_paths = [h["gnorm"] for h in run.history.values()] + [[run.gnorm0]] + (list(ghost["gnorm"].values()) if ghost else [])
-    for key, row, col, paths, log, label in (("loss", 1, 2, loss_paths, log_loss, "loss"),
-                                             ("gnorm", 2, 1, gn_paths, log_norm, "gradient norm")):
+    for key, row, col, paths, log, label in (("loss", 2, 1, loss_paths, log_loss, "loss"),
+                                             ("gnorm", 2, 2, gn_paths, log_norm, "gradient norm")):
         rng, decades = fit_range([np.maximum(p, 1e-16) if log else p for p in paths], log)
         wide = log and decades >= 2                          # one labelled tick per power of ten
         step = 1 if decades <= 8 else 2 if decades <= 16 else 4

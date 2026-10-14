@@ -5,8 +5,8 @@ One page, four panels that animate on **fixed** axes:
 
 | | |
 |---|---|
-| **Trajectory** (contour, paths) | **Loss** against iteration |
-| **Gradient norm** against iteration | **3-D surface** with the paths lifted onto it |
+| **Trajectory** (contour, paths) | **3-D surface** with the paths lifted onto it |
+| **Loss** against iteration | **Gradient norm** against iteration |
 
 Press **Run** (all iterations are computed at once), then **Play** or drag the slider. The browser replays the stored
 run, so playing causes no Streamlit reruns and nothing flickers; contours, surface and axes never move.

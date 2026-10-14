@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.2.2
+- Panel layout: trajectory top left, 3-D surface top right, loss bottom left, gradient norm bottom right.
+
 ## 0.2.1
 - Player is an explicit light card, so tables stay readable in Streamlit's dark theme (same look as the HTML export).
 - Iteration markers are larger (size 11, white outline).
