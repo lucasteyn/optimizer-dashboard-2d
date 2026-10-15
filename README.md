@@ -2,6 +2,8 @@
 
 By Luca (ML) Steyn · Claude Code · [github.com/lucasteyn](https://github.com/lucasteyn) · MIT licence
 
+**Live app:** https://optimizer-dashboard-2d-lucasteyn.streamlit.app/
+
 Compare SGD with momentum, AdaGrad, RMSProp and Adam on a function of two variables `w = (x, y)`.
 One page, four panels that animate on **fixed** axes:
 

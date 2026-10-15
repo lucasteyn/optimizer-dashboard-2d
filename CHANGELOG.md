@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.0
+- First public release, hosted on Streamlit Community Cloud (custom code stays off).
+- Faster "Fast" (25 ms) and "Very fast" (5 ms) playback speeds.
+- `.gitignore` excludes local working files.
+
 ## 0.4.0
 - Title "2-D Optimizer Dashboard" with byline and one-line description; page icon.
 - "How to use this app" expander, empty-state hint before the first run, help tooltips on settings.
